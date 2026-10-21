@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - Dadu + Extra Pengali</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #12121f;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .card {
+            background: #1e1e2f;
+            border-radius: 12px;
+            padding: 25px;
+            max-width: 450px;
+            width: 100%;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        h2 { margin-bottom: 10px; color: #ff007f; }
+        p { color: #aaa; font-size: 0.85rem; margin-bottom: 20px; }
+        .current-status {
+            background: #27293d;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1rem;
+        }
+        .section-title {
+            font-size: 0.9rem;
+            color: #4e73df;
+            margin: 15px 0 8px 0;
+            text-align: left;
+            font-weight: bold;
+        }
+        .grid-num {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .grid-multi {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #27293d;
+            color: #fff;
+            border: 2px solid transparent;
+            padding: 12px 5px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #383b53; }
+        .btn.selected {
+            background: #ff007f;
+            border-color: #ff66b2;
+        }
+        .alert {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: #1cc88a;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🛠️ Panel Bandar / Admin</h2>
+    <p>Atur Dadu Utama, Dadu Titik Kecil, dan Pengali.</p>
+
+    <div class="current-status">
+        Dadu Utama: <b id="displayMainDice" style="color: #4e73df;">-</b><br>
+        Extra Pengali: <b id="displayExtra" style="color: #ff007f;">-</b>
+    </div>
+
+    <!-- 1. DADU UTAMA -->
+    <div class="section-title">1. Target Dadu Utama (1-6):</div>
+    <div class="grid-num" id="mainDiceGrid">
+        <button class="btn btn-main" onclick="selectMainDice(1)">Dadu 1</button>
+        <button class="btn btn-main" onclick="selectMainDice(2)">Dadu 2</button>
+        <button class="btn btn-main" onclick="selectMainDice(3)">Dadu 3</button>
+        <button class="btn btn-main" onclick="selectMainDice(4)">Dadu 4</button>
+        <button class="btn btn-main" onclick="selectMainDice(5)">Dadu 5</button>
+        <button class="btn btn-main" onclick="selectMainDice(6)">Dadu 6</button>
+    </div>
+
+    <!-- 2. DADU KECIL PENGALI (TITIK 1-6) -->
+    <div class="section-title">2. Target Dadu Kecil (Titik):</div>
+    <div class="grid-num" id="subDiceGrid">
+        <button class="btn btn-sub" onclick="selectSubDice(1)">⚀ Titik 1</button>
+        <button class="btn btn-sub" onclick="selectSubDice(2)">⚁ Titik 2</button>
+        <button class="btn btn-sub" onclick="selectSubDice(3)">⚂ Titik 3</button>
+        <button class="btn btn-sub" onclick="selectSubDice(4)">⚃ Titik 4</button>
+        <button class="btn btn-sub" onclick="selectSubDice(5)">⚄ Titik 5</button>
+        <button class="btn btn-sub" onclick="selectSubDice(6)">⚅ Titik 6</button>
+    </div>
+
+    <!-- 3. KELIPATAN PENGALI -->
+    <div class="section-title">3. Target Perkalian:</div>
+    <div class="grid-multi" id="multiGrid">
+        <button class="btn btn-multi" onclick="selectMulti(1)">x1</button>
+        <button class="btn btn-multi" onclick="selectMulti(2)">x2</button>
+        <button class="btn btn-multi" onclick="selectMulti(5)">x5</button>
+        <button class="btn btn-multi" onclick="selectMulti(10)">x10</button>
+        <button class="btn btn-multi" onclick="selectMulti(20)">x20 🔥</button>
+        <button class="btn btn-multi" onclick="selectMulti(50)">x50 ⚡</button>
+        <button class="btn btn-multi" style="grid-column: span 2;" onclick="selectMulti(100)">x100 💥</button>
+    </div>
+
+    <div class="alert" id="alertBox">Berhasil memperbarui pengaturan bandar!</div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAzJ6p_stDYeaviIK1CapIpz_pc8onN5hM",
+        authDomain: "spaceman-sukses.firebaseapp.com",
+        projectId: "spaceman-sukses",
+        storageBucket: "spaceman-sukses.firebasestorage.app",
+        messagingSenderId: "442967300277",
+        appId: "1:442967300277:web:65b99aebdbc478455586fc"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const docRef = db.collection("settings").doc("dice_multiplier_control");
+
+    const diceIcons = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+    let currentMainDice = 1;
+    let currentSubDice = 1;
+    let currentMulti = 1;
+
+    docRef.onSnapshot((doc) => {
+        if (doc.exists) {
+            const data = doc.data();
+            currentMainDice = data.nextDice || 1;
+            currentSubDice = data.subDice || 1;
+            currentMulti = data.nextMulti || 1;
+            
+            document.getElementById('displayMainDice').textContent = 'Dadu ' + currentMainDice;
+            document.getElementById('displayExtra').textContent = `[${diceIcons[currentSubDice - 1]}] × x${currentMulti}`;
+            
+            updateUI();
+        }
+    });
+
+    function selectMainDice(num) {
+        currentMainDice = num;
+        saveData();
+    }
+
+    function selectSubDice(num) {
+        currentSubDice = num;
+        saveData();
+    }
+
+    function selectMulti(val) {
+        currentMulti = val;
+        saveData();
+    }
+
+    function updateUI() {
+        document.querySelectorAll('.btn-main').forEach((btn, idx) => {
+            if (idx + 1 === currentMainDice) btn.classList.add('selected');
+            else btn.classList.remove('selected');
+        });
+
+        document.querySelectorAll('.btn-sub').forEach((btn, idx) => {
+            if (idx + 1 === currentSubDice) btn.classList.add('selected');
+            else btn.classList.remove('selected');
+        });
+
+        const multis = [1, 2, 5, 10, 20, 50, 100];
+        document.querySelectorAll('.btn-multi').forEach((btn, idx) => {
+            if (multis[idx] === currentMulti) btn.classList.add('selected');
+            else btn.classList.remove('selected');
+        });
+    }
+
+    async function saveData() {
+        try {
+            await docRef.set({
+                nextDice: currentMainDice,
+                subDice: currentSubDice,
+                nextMulti: currentMulti,
+                updatedAt: new Date()
+            }, { merge: true });
+
+            const alertBox = document.getElementById('alertBox');
+            alertBox.style.display = 'block';
+            setTimeout(() => { alertBox.style.display = 'none'; }, 1500);
+        } catch (e) {
+            alert("Gagal menyimpan ke Firebase: " + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>
