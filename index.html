@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Dadu 3D + Extra Pengali Dadu Titik</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: radial-gradient(circle, #1a1a2e 0%, #0f0f1d 100%);
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            perspective: 1000px;
+        }
+        .card {
+            background: rgba(30, 30, 50, 0.95);
+            border: 2px solid #3d3d6b;
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 420px;
+            width: 100%;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.7);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.5s, box-shadow 0.5s;
+        }
+
+        .card.mega-win {
+            border-color: #ffd700;
+            box-shadow: 0 0 35px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 215, 0, 0.4);
+            animation: pulseGlow 1s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.02); }
+        }
+
+        h2 { color: #4e73df; font-size: 1.3rem; margin-bottom: 15px; letter-spacing: 1px; }
+
+        /* --- BOX EXTRA PENGALI (DADU TITIK + MULTIPLIER) --- */
+        .multi-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: #121225;
+            border: 2px solid #ff007f;
+            color: #ff007f;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1.4rem;
+            font-weight: 900;
+            margin-bottom: 15px;
+            letter-spacing: 1px;
+            min-width: 210px;
+            box-shadow: 0 0 10px rgba(255,0,127,0.3);
+            transition: all 0.3s ease;
+        }
+        .sub-dice-icon {
+            display: inline-flex;
+            width: 36px;
+            height: 36px;
+            background: #fff;
+            color: #222;
+            border-radius: 6px;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.4rem;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        /* --- STYLING DADU 3D UTAMA --- */
+        .dice-container {
+            height: 140px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+            perspective: 600px;
+        }
+        .dice {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            transform-style: preserve-3d;
+            transform: rotateX(0deg) rotateY(0deg);
+            transition: transform 3.5s cubic-bezier(0.15, 0.85, 0.2, 1.01);
+        }
+        .face {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            border: 2px solid #ccc;
+            border-radius: 12px;
+            display: grid;
+            grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+            padding: 10px;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.15);
+        }
+        .dot {
+            background: #222;
+            border-radius: 50%;
+            width: 12px;
+            height: 12px;
+            align-self: center;
+            justify-self: center;
+        }
+        
+        .front  { transform: translateZ(40px); }
+        .back   { transform: rotateY(180deg) translateZ(40px); }
+        .right  { transform: rotateY(90deg) translateZ(40px); }
+        .left   { transform: rotateY(-90deg) translateZ(40px); }
+        .top    { transform: rotateX(90deg) translateZ(40px); }
+        .bottom { transform: rotateX(-90deg) translateZ(40px); }
+
+        .dot.center { grid-area: 2 / 2 / 3 / 3; }
+        .dot.top-left { grid-area: 1 / 1 / 2 / 2; }
+        .dot.top-right { grid-area: 1 / 3 / 2 / 4; }
+        .dot.bottom-left { grid-area: 3 / 1 / 4 / 2; }
+        .dot.bottom-right { grid-area: 3 / 3 / 4 / 4; }
+        .dot.mid-left { grid-area: 2 / 1 / 3 / 2; }
+        .dot.mid-right { grid-area: 2 / 3 / 3 / 4; }
+
+        .result-box {
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin: 15px 0;
+            padding: 12px;
+            background: #121225;
+            border-radius: 8px;
+            letter-spacing: 0.5px;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #aaa;
+        }
+
+        .btn-roll {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #1cc88a, #13855c);
+            color: white;
+            font-size: 1.1rem;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(28, 200, 138, 0.4);
+            transition: all 0.2s;
+        }
+        .btn-roll:hover { transform: translateY(-2px); }
+        .btn-roll:disabled { background: #555; cursor: not-allowed; transform: none; box-shadow: none; }
+    </style>
+</head>
+<body>
+
+<div class="card" id="gameCard">
+    <h2>🎲 DADU EXTRA PENGALI 🎲</h2>
+
+    <!-- BOX EXTRA PENGALI (DADU TITIK + MULTIPLIER) -->
+    <div class="multi-badge" id="multiDisplay">
+        <div class="sub-dice-icon" id="subDiceElem">⚀</div>
+        <span id="multiText">× 1</span>
+    </div>
+
+    <!-- DADU 3D UTAMA -->
+    <div class="dice-container">
+        <div class="dice" id="dice3D">
+            <div class="face front"><div class="dot center"></div></div>
+            <div class="face back">
+                <div class="dot top-left"></div><div class="dot top-right"></div>
+                <div class="dot mid-left"></div><div class="dot mid-right"></div>
+                <div class="dot bottom-left"></div><div class="dot bottom-right"></div>
+            </div>
+            <div class="face right"><div class="dot top-left"></div><div class="dot bottom-right"></div></div>
+            <div class="face left">
+                <div class="dot top-left"></div><div class="dot top-right"></div>
+                <div class="dot center"></div>
+                <div class="dot bottom-left"></div><div class="dot bottom-right"></div>
+            </div>
+            <div class="face top"><div class="dot top-left"></div><div class="dot center"></div><div class="dot bottom-right"></div></div>
+            <div class="face bottom">
+                <div class="dot top-left"></div><div class="dot top-right"></div>
+                <div class="dot bottom-left"></div><div class="dot bottom-right"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="result-box" id="resultText">Tekan tombol untuk kocok!</div>
+
+    <button class="btn-roll" id="rollBtn" onclick="startSpin()">KOCOK DADU</button>
+</div>
+
+<script>
+    const diceIcons = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAzJ6p_stDYeaviIK1CapIpz_pc8onN5hM",
+        authDomain: "spaceman-sukses.firebaseapp.com",
+        projectId: "spaceman-sukses",
+        storageBucket: "spaceman-sukses.firebasestorage.app",
+        messagingSenderId: "442967300277",
+        appId: "1:442967300277:web:65b99aebdbc478455586fc"
+    };
+
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playTickSound() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120 + Math.random() * 80, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+    }
+
+    function playWinSound(isHigh) {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(isHigh ? 600 : 350, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(isHigh ? 1200 : 600, audioCtx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    async function startSpin() {
+        const rollBtn = document.getElementById('rollBtn');
+        const multiDisplay = document.getElementById('multiDisplay');
+        const subDiceElem = document.getElementById('subDiceElem');
+        const multiText = document.getElementById('multiText');
+        const resultText = document.getElementById('resultText');
+        const gameCard = document.getElementById('gameCard');
+
+        rollBtn.disabled = true;
+        gameCard.classList.remove('mega-win');
+        resultText.style.color = "#f6c23e";
+        resultText.textContent = "Mengocok Extra Pengali & Dadu Titik...";
+
+        // 1. Reset Tampilan Pengali
+        multiDisplay.style.borderColor = "#ff007f";
+        multiDisplay.style.color = "#ff007f";
+
+        // 2. Ambil data target dari Firebase Admin
+        let targetMainDice = 1;
+        let targetSubDice = 1;
+        let targetMulti = 1;
+
+        try {
+            const doc = await db.collection("settings").doc("dice_multiplier_control").get();
+            if (doc.exists) {
+                targetMainDice = doc.data().nextDice || 1;
+                targetSubDice = doc.data().subDice || 1;
+                targetMulti = doc.data().nextMulti || 1;
+            }
+        } catch (e) {
+            console.error("Gagal memuat data admin:", e);
+        }
+
+        // 3. TAHAP 1: SPIN DRAMATIS EXTRA PENGALI (MELEWATI BERBAGAI ANGKA TITIK & MELAMBAT)
+        const possibleMultis = [1, 2, 5, 10, 20, 50, 100];
+        let step = 0;
+        let totalSteps = 22; // Jumlah perputaran acak sebelum melambat
+        let currentDelay = 50;
+
+        function runSubDiceSpin() {
+            const randomDiceIdx = Math.floor(Math.random() * 6);
+            const randomMulti = possibleMultis[Math.floor(Math.random() * possibleMultis.length)];
+
+            subDiceElem.textContent = diceIcons[randomDiceIdx];
+            multiText.textContent = `× ${randomMulti}`;
+            playTickSound();
+
+            step++;
+            if (step < totalSteps) {
+                // Efek mengerem: jeda waktu semakin lama (melambat secara dramatis)
+                currentDelay += 15; 
+                setTimeout(runSubDiceSpin, currentDelay);
+            } else {
+                // Berhenti tepat pada target yang diatur Admin/Bandar
+                subDiceElem.textContent = diceIcons[targetSubDice - 1];
+                multiText.textContent = `× ${targetMulti}`;
+
+                if (targetMulti >= 20) {
+                    multiDisplay.style.borderColor = "#ffd700";
+                    multiDisplay.style.color = "#ffd700";
+                }
+
+                // Jeda sebentar sebelum lanjut ke Dadu Utama 3D
+                setTimeout(() => {
+                    startDiceRoll(targetMainDice, targetSubDice, targetMulti);
+                }, 600);
+            }
+        }
+
+        runSubDiceSpin();
+    }
+
+    function startDiceRoll(targetMainDice, targetSubDice, targetMulti) {
+        const resultText = document.getElementById('resultText');
+        const dice = document.getElementById('dice3D');
+        const gameCard = document.getElementById('gameCard');
+        const rollBtn = document.getElementById('rollBtn');
+
+        resultText.textContent = "Mengocok Dadu Utama 3D...";
+
+        // Reset rotasi Dadu Utama
+        dice.style.transition = 'none';
+        dice.style.transform = 'rotateX(0deg) rotateY(0deg)';
+        void dice.offsetWidth;
+        dice.style.transition = 'transform 3.5s cubic-bezier(0.15, 0.85, 0.2, 1.01)';
+
+        let baseRotX = 0, baseRotY = 0;
+        switch(targetMainDice) {
+            case 1: baseRotX = 0; baseRotY = 0; break;       // Front
+            case 2: baseRotX = 0; baseRotY = -90; break;     // Right
+            case 3: baseRotX = -90; baseRotY = 0; break;     // Top
+            case 4: baseRotX = 90; baseRotY = 0; break;      // Bottom
+            case 5: baseRotX = 0; baseRotY = 90; break;      // Left
+            case 6: baseRotX = 0; baseRotY = 180; break;     // Back
+        }
+
+        dice.style.transform = `rotateX(${1440 + baseRotX}deg) rotateY(${1440 + baseRotY}deg)`;
+
+        let delay = 60;
+        for (let i = 0; i < 25; i++) {
+            setTimeout(() => { playTickSound(); }, delay);
+            delay += i * 5;
+        }
+
+        setTimeout(() => {
+            const isMatch = targetMainDice === targetSubDice;
+            const isHigh = targetMulti >= 20;
+
+            playWinSound(isHigh || isMatch);
+
+            if (isHigh || isMatch) {
+                gameCard.classList.add('mega-win');
+                resultText.style.color = "#ffd700";
+                resultText.textContent = `💥 UTAMA: ${targetMainDice} | EXTRA: [${diceIcons[targetSubDice - 1]}] × ${targetMulti} 💥`;
+            } else {
+                resultText.style.color = "#1cc88a";
+                resultText.textContent = `UTAMA: ${targetMainDice} | EXTRA: [${diceIcons[targetSubDice - 1]}] × ${targetMulti}`;
+            }
+
+            rollBtn.disabled = false;
+        }, 3500);
+    }
+</script>
+
+</body>
+</html>
